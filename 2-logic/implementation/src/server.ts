@@ -5,6 +5,20 @@ import * as path from 'path';
 import { GameState, Player, Placement } from './types';
 import { GameEngine } from './game-engine/game-engine';
 import { Dictionary } from './dictionary';
+// Security: Import input sanitization and rate limiting modules
+// Addresses DEBT-001 (Input Sanitization) and DEBT-002 (Rate Limiting)
+import {
+  sanitizePlayerName,
+  validateDictionaryWord,
+  validateArraySize,
+  sanitizeErrorMessage,
+} from './security/input-sanitization';
+import {
+  SocketRateLimiter,
+  HttpRateLimiter,
+  ConnectionLimiter,
+  createHttpRateLimitMiddleware,
+} from './security/rate-limiting';
 
 const app = express();
 const server = createServer(app);
@@ -28,6 +42,17 @@ const gameEngine = new GameEngine();
 const dictionary = new Dictionary();
 dictionary.load('dictionary.txt');
 
+// Security: Initialize rate limiters and connection limiter
+// Addresses DEBT-002: No Rate Limiting (DoS vulnerability)
+// Threat Model: T3.1 (Spam connections), T3.2 (Message flooding)
+const socketRateLimiter = new SocketRateLimiter();
+const httpRateLimiter = new HttpRateLimiter();
+const connectionLimiter = new ConnectionLimiter();
+
+// Security: Apply HTTP rate limiting to all API endpoints
+// Addresses DEBT-002: Prevents DoS via HTTP request flooding
+app.use('/api', createHttpRateLimitMiddleware(httpRateLimiter));
+
 // Serve static files
 app.use('/assets', express.static(path.join(__dirname, '..', 'public', 'assets')));
 app.get('/', (req, res) => {
@@ -46,14 +71,46 @@ app.get('/api/status', (req, res) => {
 });
 
 app.get('/api/dictionary/check/:word', (req, res) => {
-  const word = req.params.word.toUpperCase();
+  // Security: Validate and sanitize word parameter
+  // Addresses DEBT-001: Prevents path traversal and injection attacks
+  // Threat Model: T1.2 - Injection in Dictionary Check Endpoint
+  const sanitizationResult = validateDictionaryWord(req.params.word);
+
+  if (!sanitizationResult.valid) {
+    res.status(400).json({
+      error: 'Invalid word format',
+      message: sanitizationResult.error,
+      code: 'INVALID_INPUT',
+    });
+    return;
+  }
+
+  const word = sanitizationResult.sanitized!;
   const valid = dictionary.has(word);
   res.json({ word, valid });
 });
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
-  console.log(`New connection: ${socket.id}`);
+  // Security: Get client identifier for connection limiting
+  // In production, consider X-Forwarded-For if behind proxy
+  const clientIP = socket.handshake.address || 'unknown';
+
+  // Security: Check connection limits to prevent DoS
+  // Addresses DEBT-002: Rate Limiting
+  // Threat Model: T3.1 - Spam Connection Attempts
+  if (!connectionLimiter.allowConnection(clientIP)) {
+    console.warn(`Connection limit exceeded for ${clientIP}`);
+    socket.emit('error', {
+      message: 'Too many connections from your address',
+      code: 'CONNECTION_LIMIT_EXCEEDED',
+    });
+    socket.disconnect(true);
+    return;
+  }
+
+  connectionLimiter.addConnection(clientIP);
+  console.log(`New connection: ${socket.id} from ${clientIP}`);
 
   // Send lobby state if in lobby
   if (gameState.phase === 'lobby') {
@@ -61,13 +118,38 @@ io.on('connection', (socket) => {
   }
 
   socket.on('joinGame', (data: { playerName: string }) => {
-    const playerName = data.playerName.trim();
+    // Security: Rate limiting for joinGame events
+    // Addresses DEBT-002: Prevents spam join attempts
+    // Threat Model: T3.2 - Message Flooding
+    if (!socketRateLimiter.checkLimit(socket.id, 'joinGame')) {
+      const action = socketRateLimiter.getAction('joinGame');
+      console.warn(`Rate limit exceeded for ${socket.id} on joinGame`);
 
-    // Validate name
-    if (playerName.length < 3 || playerName.length > 20) {
-      socket.emit('error', { message: 'Name must be 3-20 characters' });
+      socket.emit('error', {
+        message: 'Too many join attempts. Please wait.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+
+      if (action === 'disconnect') {
+        socket.disconnect(true);
+      }
       return;
     }
+
+    // Security: Sanitize and validate player name
+    // Addresses DEBT-001: Prevents XSS attacks
+    // Threat Model: T1.1 - XSS in Player Names
+    const sanitizationResult = sanitizePlayerName(data.playerName);
+
+    if (!sanitizationResult.valid) {
+      socket.emit('error', {
+        message: sanitizationResult.error,
+        code: 'INVALID_NAME',
+      });
+      return;
+    }
+
+    const playerName = sanitizationResult.sanitized!;
 
     // Check name not taken
     if (gameState.players.some((p) => p.name === playerName)) {
@@ -105,6 +187,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startGame', () => {
+    // Security: Rate limiting for startGame events
+    // Addresses DEBT-002: Prevents spam start attempts
+    if (!socketRateLimiter.checkLimit(socket.id, 'startGame')) {
+      socket.emit('error', {
+        message: 'Too many start attempts. Please wait.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+      return;
+    }
+
     const player = gameState.players.find((p) => p.id === socket.id);
     if (!player) {
       socket.emit('error', { message: 'You must join first' });
@@ -146,8 +238,31 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitWord', (data: { placements: Placement[] }) => {
+    // Security: Rate limiting for submitWord events
+    // Addresses DEBT-002: Most critical rate limit (prevents CPU exhaustion)
+    // Threat Model: T3.2 - Message Flooding (most expensive operation)
+    if (!socketRateLimiter.checkLimit(socket.id, 'submitWord')) {
+      socket.emit('wordRejected', {
+        reason: 'Too many word submissions. Please wait.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+      return;
+    }
+
     const playerId = socket.id;
     const { placements } = data;
+
+    // Security: Validate payload size to prevent DoS
+    // Addresses DEBT-002: Prevents large payload attacks
+    // Threat Model: T3.3 - Large Payload Attacks
+    const sizeValidation = validateArraySize(placements, 7, 'placements');
+    if (!sizeValidation.valid) {
+      socket.emit('wordRejected', {
+        reason: sizeValidation.error,
+        code: 'INVALID_PAYLOAD',
+      });
+      return;
+    }
 
     if (gameState.phase !== 'playing') {
       socket.emit('error', { message: 'Game not in progress', code: 'GAME_NOT_STARTED' });
@@ -198,6 +313,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('passTurn', () => {
+    // Security: Rate limiting for passTurn events
+    // Addresses DEBT-002: Prevents spam pass attempts
+    if (!socketRateLimiter.checkLimit(socket.id, 'passTurn')) {
+      socket.emit('error', {
+        message: 'Too many pass attempts. Please wait.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+      return;
+    }
+
     const playerId = socket.id;
 
     if (gameState.phase !== 'playing') {
@@ -227,8 +352,29 @@ io.on('connection', (socket) => {
   });
 
   socket.on('exchangeTiles', (data: { tileIndices: number[] }) => {
+    // Security: Rate limiting for exchangeTiles events
+    // Addresses DEBT-002: Prevents spam exchange attempts
+    if (!socketRateLimiter.checkLimit(socket.id, 'exchangeTiles')) {
+      socket.emit('error', {
+        message: 'Too many exchange attempts. Please wait.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+      return;
+    }
+
     const playerId = socket.id;
     const { tileIndices } = data;
+
+    // Security: Validate payload size
+    // Max 7 tiles in rack, so max 7 indices
+    const sizeValidation = validateArraySize(tileIndices, 7, 'tile indices');
+    if (!sizeValidation.valid) {
+      socket.emit('error', {
+        message: sizeValidation.error,
+        code: 'INVALID_PAYLOAD',
+      });
+      return;
+    }
 
     if (gameState.phase !== 'playing') {
       socket.emit('error', { message: 'Game not in progress' });
@@ -257,6 +403,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Security: Clean up rate limiter state for this socket
+    // Prevents memory leak from accumulating rate limit buckets
+    socketRateLimiter.clearSocket(socket.id);
+
+    // Security: Decrement connection count for this IP
+    connectionLimiter.removeConnection(clientIP);
+
     const player = gameState.players.find((p) => p.id === socket.id);
 
     if (!player) {

@@ -1,4 +1,8 @@
 import { Board, Placement, ValidationResult } from '../types';
+// Security: Import tile letter validation
+// Addresses DEBT-001: Prevents malicious tile letters (XSS via tiles)
+// Threat Model: T1.3 - Malicious Tile Letters
+import { validateTileLetter } from '../security/input-sanitization';
 
 export function validatePlacement(
   placements: Placement[],
@@ -19,6 +23,14 @@ export function validatePlacement(
     }
     if (board[placement.row][placement.col] !== null) {
       return { valid: false, error: 'Square already occupied' };
+    }
+
+    // Security: Validate tile letter to prevent XSS
+    // Addresses DEBT-001, Threat Model: T1.3
+    // Prevents injection like {letter: '<script>alert(1)</script>'}
+    const letterValidation = validateTileLetter(placement.tile.letter);
+    if (!letterValidation.valid) {
+      return { valid: false, error: `Invalid tile letter: ${letterValidation.error}` };
     }
   }
 

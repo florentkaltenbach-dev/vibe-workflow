@@ -1,5 +1,14 @@
 import { Board, Placement } from '../types';
 import { getPremiumSquareType } from './board';
+import {
+  BINGO_BONUS,
+  FULL_RACK_SIZE,
+  DOUBLE_LETTER_MULTIPLIER,
+  TRIPLE_LETTER_MULTIPLIER,
+  DOUBLE_WORD_MULTIPLIER,
+  TRIPLE_WORD_MULTIPLIER,
+} from './scoring-config';
+import { BOARD_MAX_INDEX } from './board-config';
 
 export function calculateScore(placements: Placement[], board: Board): number {
   // Create board copy
@@ -29,9 +38,9 @@ export function calculateScore(placements: Placement[], board: Board): number {
     }
   }
 
-  // Bingo bonus (all 7 tiles)
-  if (placements.length === 7) {
-    totalScore += 50;
+  // Bingo bonus (using all tiles from full rack)
+  if (placements.length === FULL_RACK_SIZE) {
+    totalScore += BINGO_BONUS;
   }
 
   return totalScore;
@@ -44,7 +53,7 @@ function scoreHorizontalWord(row: number, newPlacements: Placement[], board: Boa
   }
 
   let endCol = Math.max(...newPlacements.map((p) => p.col));
-  while (endCol < 14 && board[row][endCol + 1] !== null) {
+  while (endCol < BOARD_MAX_INDEX && board[row][endCol + 1] !== null) {
     endCol++;
   }
 
@@ -65,13 +74,13 @@ function scoreHorizontalWord(row: number, newPlacements: Placement[], board: Boa
     if (newPlacementCols.has(col)) {
       const premiumType = getPremiumSquareType(row, col);
       if (premiumType === 'DOUBLE_LETTER') {
-        tileScore *= 2;
+        tileScore *= DOUBLE_LETTER_MULTIPLIER;
       } else if (premiumType === 'TRIPLE_LETTER') {
-        tileScore *= 3;
+        tileScore *= TRIPLE_LETTER_MULTIPLIER;
       } else if (premiumType === 'DOUBLE_WORD') {
-        wordMultiplier *= 2;
+        wordMultiplier *= DOUBLE_WORD_MULTIPLIER;
       } else if (premiumType === 'TRIPLE_WORD') {
-        wordMultiplier *= 3;
+        wordMultiplier *= TRIPLE_WORD_MULTIPLIER;
       }
     }
 
@@ -88,7 +97,7 @@ function scoreVerticalWord(col: number, newPlacements: Placement[], board: Board
   }
 
   let endRow = Math.max(...newPlacements.map((p) => p.row));
-  while (endRow < 14 && board[endRow + 1][col] !== null) {
+  while (endRow < BOARD_MAX_INDEX && board[endRow + 1][col] !== null) {
     endRow++;
   }
 
@@ -109,13 +118,13 @@ function scoreVerticalWord(col: number, newPlacements: Placement[], board: Board
     if (newPlacementRows.has(row)) {
       const premiumType = getPremiumSquareType(row, col);
       if (premiumType === 'DOUBLE_LETTER') {
-        tileScore *= 2;
+        tileScore *= DOUBLE_LETTER_MULTIPLIER;
       } else if (premiumType === 'TRIPLE_LETTER') {
-        tileScore *= 3;
+        tileScore *= TRIPLE_LETTER_MULTIPLIER;
       } else if (premiumType === 'DOUBLE_WORD') {
-        wordMultiplier *= 2;
+        wordMultiplier *= DOUBLE_WORD_MULTIPLIER;
       } else if (premiumType === 'TRIPLE_WORD') {
-        wordMultiplier *= 3;
+        wordMultiplier *= TRIPLE_WORD_MULTIPLIER;
       }
     }
 
