@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scrabble Game</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Join Screen -->
+    <div id="join-screen" class="screen">
+      <h1>Scrabble Game</h1>
+      <div class="join-form">
+        <input type="text" id="name-input" placeholder="Enter your name" maxlength="20" autofocus />
+        <button id="join-button">Join Game</button>
+      </div>
+      <div id="join-error" class="error"></div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen hidden">
+      <h2>Game Lobby</h2>
+      <h3>Players:</h3>
+      <ul id="player-list"></ul>
+      <button id="start-game-button" class="hidden">Start Game</button>
+      <p id="lobby-status"></p>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen hidden">
+      <div class="game-header">
+        <div id="turn-indicator"></div>
+        <div id="tile-bag-count">Tiles remaining: 100</div>
+      </div>
+
+      <div class="game-container">
+        <div class="left-panel">
+          <div id="scoreboard-container">
+            <h3>Scores</h3>
+            <table id="scoreboard"></table>
+          </div>
+        </div>
+
+        <div class="center-panel">
+          <div id="board-container"></div>
+
+          <div class="tile-rack-container">
+            <h4>Your Tiles</h4>
+            <div id="tile-rack"></div>
+          </div>
+
+          <div class="action-buttons">
+            <button id="submit-button" disabled>Submit Word</button>
+            <button id="pass-button">Pass Turn</button>
+            <button id="exchange-button">Exchange Tiles</button>
+            <button id="clear-button" disabled>Clear</button>
+          </div>
+        </div>
+
+        <div class="right-panel">
+          <div id="game-log">
+            <h3>Recent Plays</h3>
+            <ul id="play-history"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="modal hidden">
+      <div class="modal-content">
+        <div id="game-over-content"></div>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notification" class="notification hidden"></div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
