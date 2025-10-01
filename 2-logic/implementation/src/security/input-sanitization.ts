@@ -225,7 +225,7 @@ export function sanitizeErrorMessage(error: any): string {
   if (typeof error === 'string') {
     // Remove file paths if present
     return error.replace(/\/[\w\/\-\.]+/g, '[path]')
-                .replace(/\\[\w\\-\.]+/g, '[path]')
+                .replace(/\\[\w\\\-\.]+/g, '[path]')
                 .replace(/at .+/g, '');
   }
 

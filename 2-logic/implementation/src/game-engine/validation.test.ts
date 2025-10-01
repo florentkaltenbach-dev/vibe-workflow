@@ -7,7 +7,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement([], board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('No tiles placed');
+    if (result.valid === false) {
+      expect(result.error).toBe('No tiles placed');
+    }
   });
 
   it('should reject placement with invalid row', () => {
@@ -16,7 +18,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Invalid row');
+    if (result.valid === false) {
+      expect(result.error).toBe('Invalid row');
+    }
   });
 
   it('should reject placement with invalid column', () => {
@@ -25,7 +29,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Invalid column');
+    if (result.valid === false) {
+      expect(result.error).toBe('Invalid column');
+    }
   });
 
   it('should reject placement on occupied square', () => {
@@ -36,7 +42,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, false);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Square already occupied');
+    if (result.valid === false) {
+      expect(result.error).toBe('Square already occupied');
+    }
   });
 
   it('should reject tiles not forming a line', () => {
@@ -48,7 +56,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Tiles must form a single line');
+    if (result.valid === false) {
+      expect(result.error).toBe('Tiles must form a single line');
+    }
   });
 
   it('should reject horizontal placement with gap', () => {
@@ -60,7 +70,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Gap in word');
+    if (result.valid === false) {
+      expect(result.error).toBe('Gap in word');
+    }
   });
 
   it('should require first move to touch center (7,7)', () => {
@@ -69,7 +81,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('First word must touch center');
+    if (result.valid === false) {
+      expect(result.error).toBe('First word must touch center');
+    }
   });
 
   it('should accept first move touching center', () => {
@@ -88,7 +102,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, false);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Word must connect to existing tiles');
+    if (result.valid === false) {
+      expect(result.error).toBe('Word must connect to existing tiles');
+    }
   });
 
   it('should accept valid horizontal placement', () => {
@@ -123,7 +139,9 @@ describe('validatePlacement', () => {
     const result = validatePlacement(placements, board, true);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toContain('Invalid tile letter');
+    if (result.valid === false) {
+      expect(result.error).toContain('Invalid tile letter');
+    }
   });
 });
 
@@ -191,8 +209,10 @@ describe('validateWords', () => {
     const result = validateWords(words, dictionary);
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Invalid word(s)');
-    expect(result.invalidWords).toContain('XYZ');
+    if (result.valid === false) {
+      expect(result.error).toBe('Invalid word(s)');
+      expect(result.invalidWords).toContain('XYZ');
+    }
   });
 
   it('should validate case-insensitively', () => {

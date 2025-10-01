@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import * as path from 'path';
-import { GameState, Player, Placement } from './types';
+import { GameState, Player, Placement, GamePhase } from './types';
 import { GameEngine } from './game-engine/game-engine';
 import { Dictionary } from './dictionary';
 // Security: Import input sanitization and rate limiting modules
@@ -441,7 +441,8 @@ io.on('connection', (socket) => {
       if (gameState.players[gameState.currentPlayerIndex].id === player.id) {
         gameEngine.advanceTurn(gameState);
 
-        if (gameState.phase === 'ended') {
+        // Check phase after advanceTurn (which may end the game)
+        if ((gameState.phase as GamePhase) === 'ended') {
           handleGameEnd('allPlayersDisconnected');
         } else {
           io.emit('turnChange', {
